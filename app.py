@@ -3,7 +3,7 @@ import html
 import json
 import random
 import streamlit as st
-from llama_cpp import Llama
+#from llama_cpp import Llama
 from engine.final_generator import generate_story_fast
 import requests
 
@@ -62,7 +62,10 @@ def download_model():
             st.stop()
 
 
-download_model()
+# download_model()
+# model = load_model()
+
+model = None
 
 # ✅ LOAD MODEL (ONLY ONCE)
 @st.cache_resource
@@ -231,15 +234,11 @@ def home_page():
 
     if submitted and user_prompt.strip():
         with st.spinner("Generating story... ✨"):
-            result = generate_story_fast(
-                model=model,
-                genre=genre,
-                character=character,
-                theme=theme,
-                tone=tone,
-                length=length,
-                user_prompt=user_prompt,
-            )
+            result = {
+                "title": "Demo Story",
+                "prompt": user_prompt,
+                "story": f"This is a demo story for: {user_prompt}. Your app is successfully deployed!"
+            }
 
         # ✅ SAVE STORY
         st.session_state.stories.append(result)
