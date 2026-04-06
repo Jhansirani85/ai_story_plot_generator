@@ -1,20 +1,66 @@
 import os
 import html
+import json
+import random
 import streamlit as st
 from llama_cpp import Llama
 from engine.final_generator import generate_story_fast
 import requests
 
+# =========================
+# LOAD DATASET (SIMPLE WAY)
+# =========================
+
+DATASET_FILE = "datasets.json"
+
+@st.cache_data
+def load_prompts():
+    if not os.path.exists(DATASET_FILE):
+        return []
+
+    with open(DATASET_FILE) as f:
+        data = json.load(f)
+
+    all_prompts = []
+
+    for url in data.get("story_prompts", []):
+        try:
+            response = requests.get(url)
+
+            if response.status_code == 200:
+                file_data = response.json()  # expects JSON list
+                all_prompts.extend(file_data)
+        except:
+            pass
+
+    return all_prompts
+
+
+# =========================
+# MODEL SETUP
+# =========================
+
 MODEL_PATH = "models/tinyllama.gguf"
-MODEL_URL = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF"
+
+MODEL_URL = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q2_K.gguf"
+
 
 def download_model():
     if not os.path.exists(MODEL_PATH):
+        st.warning("Downloading model... ⏳")
         os.makedirs("models", exist_ok=True)
-        with requests.get(MODEL_URL, stream=True) as r:
-            with open(MODEL_PATH, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
+
+        try:
+            with requests.get(MODEL_URL, stream=True) as r:
+                r.raise_for_status()
+                with open(MODEL_PATH, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+        except Exception as e:
+            st.error(f"Download failed: {e}")
+            st.stop()
+
 
 download_model()
 
