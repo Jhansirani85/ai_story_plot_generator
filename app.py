@@ -68,16 +68,16 @@ def download_model():
 model = None
 
 # ✅ LOAD MODEL (ONLY ONCE)
-@st.cache_resource
-def load_model():
-    return Llama(
-        model_path="models/tinyllama.gguf",
-        n_ctx=2048,      # Increased context for longer stories
-        n_threads=4,     # Experiment: 4 is often faster than 6 or 8 due to overhead
-        n_batch=512,     # Process the prompt in larger chunks
-    )
+#@st.cache_resource
+#def load_model():
+#    return Llama(
+#        model_path="models/tinyllama.gguf",
+#        n_ctx=2048,      # Increased context for longer stories
+#        n_threads=4,     # Experiment: 4 is often faster than 6 or 8 due to overhead
+#        n_batch=512,     # Process the prompt in larger chunks
+#    )
 
-model = load_model()
+#model = load_model()
 
 
 # ✅ PAGE CONFIG
