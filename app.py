@@ -3,12 +3,12 @@ import html
 import json
 import random
 import streamlit as st
-#from llama_cpp import Llama
+from llama_cpp import Llama
 from engine.final_generator import generate_story_fast
 import requests
 
 # =========================
-# LOAD DATASET (SIMPLE WAY)
+# LOAD DATASET
 # =========================
 
 DATASET_FILE = "datasets.json"
@@ -26,9 +26,8 @@ def load_prompts():
     for url in data.get("story_prompts", []):
         try:
             response = requests.get(url)
-
             if response.status_code == 200:
-                file_data = response.json()  # expects JSON list
+                file_data = response.json()
                 all_prompts.extend(file_data)
         except:
             pass
@@ -40,61 +39,74 @@ def load_prompts():
 # MODEL SETUP
 # =========================
 
-MODEL_PATH = "models/tinyllama.gguf"
+model = None  # Cloud fallback
 
-MODEL_URL = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q2_K.gguf"
+# ✅ UNCOMMENT THIS FOR LOCAL RUN
+"""
+from llama_cpp import Llama
 
+@st.cache_resource
+def load_model():
+    return Llama(
+        model_path="models/tinyllama.gguf",
+        n_ctx=2048,
+        n_threads=4,
+        n_batch=512,
+    )
 
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        st.warning("Downloading model... ⏳")
-        os.makedirs("models", exist_ok=True)
-
-        try:
-            with requests.get(MODEL_URL, stream=True) as r:
-                r.raise_for_status()
-                with open(MODEL_PATH, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-        except Exception as e:
-            st.error(f"Download failed: {e}")
-            st.stop()
+model = load_model()
+"""
 
 
-# download_model()
-# model = load_model()
+# =========================
+# STORY GENERATION
+# =========================
 
-model = None
+def generate_story(prompt, genre, character, theme, tone, length):
 
-# ✅ LOAD MODEL (ONLY ONCE)
-#@st.cache_resource
-#def load_model():
-#    return Llama(
-#        model_path="models/tinyllama.gguf",
-#        n_ctx=2048,      # Increased context for longer stories
-#        n_threads=4,     # Experiment: 4 is often faster than 6 or 8 due to overhead
-#        n_batch=512,     # Process the prompt in larger chunks
-#    )
+    # ✅ LOCAL MODEL MODE
+    if model is not None:
+        return generate_story_fast(
+            model,
+            genre,
+            theme,
+            tone,
+            length,
+            user_idea=prompt
+        )
 
-#model = load_model()
+    # ✅ FALLBACK MODE (Streamlit Cloud)
+    prompts = load_prompts()
+
+    if prompts:
+        return random.choice(prompts)
+
+    return "Demo story: Model not loaded. Running in fallback mode."
 
 
-# ✅ PAGE CONFIG
+# =========================
+# PAGE CONFIG
+# =========================
+
 st.set_page_config(
     page_title="AI Story Generator",
     layout="wide",
 )
 
+# =========================
+# LOAD CSS
+# =========================
 
-# ✅ LOAD CSS
 css_path = os.path.join("styles", "theme.css")
 if os.path.exists(css_path):
     with open(css_path, "r", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 
-# ✅ SESSION STATE INIT
+# =========================
+# SESSION STATE
+# =========================
+
 if "page" not in st.session_state:
     st.session_state.page = "Home"
 
@@ -102,7 +114,10 @@ if "stories" not in st.session_state:
     st.session_state.stories = []
 
 
-# ✅ NAVBAR
+# =========================
+# NAVBAR
+# =========================
+
 def navbar():
     col1, col2, col3, col4 = st.columns([6, 1, 1, 1])
 
@@ -122,7 +137,10 @@ def navbar():
             st.session_state.page = "Contact"
 
 
-# ✅ RESET BUTTON
+# =========================
+# RESET BUTTON
+# =========================
+
 def reset_button():
     col1, col2 = st.columns([8, 2])
     with col2:
@@ -130,7 +148,10 @@ def reset_button():
             st.session_state.stories = []
 
 
-# ✅ SIDEBAR CONTROLS
+# =========================
+# SIDEBAR
+# =========================
+
 def sidebar_controls():
     with st.sidebar:
         st.markdown("## ✨ Story Settings")
@@ -140,10 +161,7 @@ def sidebar_controls():
             ["Mystery", "Fantasy", "Romance", "Sci-Fi", "Slice of Life", "Horror", "Adventure"],
         )
 
-        character = st.text_input(
-            "Character",
-            value="A curious girl"
-        )
+        character = st.text_input("Character", value="A curious girl")
 
         theme = st.selectbox(
             "Theme",
@@ -155,34 +173,33 @@ def sidebar_controls():
             ["Serious", "Warm", "Melancholic", "Hopeful", "Dark", "Dreamy"],
         )
 
-        length = st.selectbox(
-            "Length",
-            ["Short", "Medium", "Long"],
-            index=1,
-        )
+        length = st.selectbox("Length", ["Short", "Medium", "Long"], index=1)
 
     return genre, character, theme, tone, length
 
 
-# ✅ FORMAT STORY
+# =========================
+# FORMAT STORY
+# =========================
+
 def format_story(story: str) -> str:
     paragraphs = story.strip().split("\n\n")
-    formatted = "".join(f"<p>{p.strip()}</p>" for p in paragraphs)
-    return formatted
+    return "".join(f"<p>{p.strip()}</p>" for p in paragraphs)
 
 
-# ✅ STORY CARD (🔥 TITLE FIX HERE)
+# =========================
+# STORY CARD
+# =========================
+
 def render_story_card(item: dict, story_number: int):
     title = item.get("title", "").strip()
 
-    # 🔥 fallback title
     if not title or title.lower() == "generated story":
         title = f"Story {story_number}"
 
     prompt = html.escape(item.get("prompt", ""))
     story = item.get("story", "")
 
-    # 🔥 DYNAMIC TITLE (FIXED)
     st.markdown(f"## 📖 {title}")
 
     with st.expander("🧠 View Prompt"):
@@ -204,7 +221,10 @@ def render_story_card(item: dict, story_number: int):
     st.divider()
 
 
-# ✅ HOME PAGE
+# =========================
+# HOME PAGE
+# =========================
+
 def home_page():
     reset_button()
 
@@ -234,25 +254,26 @@ def home_page():
 
     if submitted and user_prompt.strip():
         with st.spinner("Generating story... ✨"):
+
+            story_text = generate_story(
+                user_prompt, genre, character, theme, tone, length
+            )
+
             result = {
-                "title": "Demo Story",
+                "title": "Generated Story",
                 "prompt": user_prompt,
-                "story": f"This is a demo story for: {user_prompt}. Your app is successfully deployed!"
+                "story": story_text
             }
 
-        # ✅ SAVE STORY
-        st.session_state.stories.append(result)
+            st.session_state.stories.append(result)
+            st.rerun()
 
-        st.rerun()
-
-    # 🔥 STORY VAULT
+    # STORY VAULT
     st.markdown(f"## 📚 Story Vault ({len(st.session_state.stories)})")
 
     for i, item in enumerate(reversed(st.session_state.stories), 1):
         story_number = len(st.session_state.stories) - i + 1
         render_story_card(item, story_number)
-
-
 # ✅ ABOUT PAGE
 def about_page():
     st.markdown(
